@@ -1,0 +1,32 @@
+apiVersion: apps/v1                     # Specifies the API version to use for the deployment resource.
+kind: Deployment                        # Declares this resource as a Deployment.
+metadata:
+  name: laravel-app                     # The name assigned to this Deployment object.
+spec:
+  replicas: 2                           # Runs 2 replicas (pods) of the Laravel container.
+  selector:
+    matchLabels:
+      app: laravel                      # This selector matches pods with the label app=laravel.
+  template:
+    metadata:
+      labels:
+        app: laravel                    # Labels to identify the pod; must match the selector above.
+    spec:
+      containers:
+      - name: laravel                   # Name of the container running in the pod.
+        image: 183631301567.dkr.ecr.eu-west-1.amazonaws.com/lamp-app:latest 
+                                        # Docker image stored in AWS ECR to be pulled and run.
+        ports:
+        - containerPort: 80             # Exposes port 80 from the container (likely serving HTTP).
+        env:                            # Environment variables passed into the container.
+        - name: DB_HOST
+          value: "<rds-endpoint>"       # Replace with your RDS endpoint; sets the DB host.
+        - name: DB_DATABASE
+          value: "laraveldb"            # Name of the Laravel database.
+        - name: DB_USERNAME
+          value: "admin"                # Database username.
+        - name: DB_PASSWORD
+          valueFrom:                    # Securely fetches DB password from a Kubernetes secret.
+            secretKeyRef:
+              name: db-secrets          # Name of the secret object.
+              key: db-password          # Key inside the secret containing the actual password.
