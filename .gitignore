@@ -25,5 +25,5 @@ override.tf.json
 *_override.tf.json
 
 # Include tfplan files to ignore everything ending with .tfplan
-*.tfplan
+tfplan.*
 

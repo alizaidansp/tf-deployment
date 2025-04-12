@@ -1,0 +1,246 @@
+===== main.tf =====
+# Reusable Modules
+
+# VPC Module (reused from original)
+module "vpc" {
+  source               = "../laravel-ec2-deployment/modules/vpc"
+  vpc_cidr             = var.vpc_cidr
+  public_subnet_cidrs  = var.public_subnet_cidrs
+  private_subnet_cidrs = var.private_subnet_cidrs
+  availability_zones   = var.availability_zones
+
+
+  #  Tagging (Essential for EKS Discovery)
+  
+   public_subnet_tags = {
+    "kubernetes.io/role/elb" = "1"
+  }
+
+  private_subnet_tags = {
+    "kubernetes.io/role/internal-elb" = "1"
+}
+
+}
+
+# RDS Module (reused from original)
+module "rds" {
+  source            = "../laravel-ec2-deployment/modules/rds"
+  vpc_id            = module.vpc.vpc_id
+  subnet_ids        = module.vpc.private_subnet_ids
+  security_group_id = module.security_group.rds_sg_id  # References new SG module
+  db_name           = var.db_name
+  db_username       = var.db_username
+  db_password       = var.db_password
+  multi_az          = true
+}
+
+# New Modules
+
+# Security Group Module (new for EKS)
+module "security_group" {
+  source = "./modules/security_group"
+  vpc_id = module.vpc.vpc_id
+}
+
+# ALB Module (new for EKS)
+# module "alb" {
+#   source            = "./modules/alb"
+#   vpc_id            = module.vpc.vpc_id
+#   subnet_ids        = module.vpc.public_subnet_ids
+#   security_group_id = module.security_group.alb_sg_id
+#   target_group_port = var.target_group_port 
+
+# }
+
+# IAM Module
+module "iam" {
+source = "./modules/iam"
+cluster_name       = var.cluster_name
+
+
+}
+
+# EKS Module (new)
+module "eks" {
+  source             = "./modules/eks"
+  cluster_name       = "laravel-eks-cluster"
+  cluster_version    = "1.27"
+  vpc_id             = module.vpc.vpc_id
+  subnet_ids         = module.vpc.private_subnet_ids
+  security_group_ids = [module.security_group.eks_sg_id]
+  eks_cluster_role_arn = module.iam.eks_cluster_role_arn  # Correct module reference
+  eks_node_role_arn = module.iam.eks_node_role_arn  # Correct module reference
+  worker_security_group_id = module.security_group.worker_security_group_id
+
+  
+  node_groups = {
+    general = {
+      desired_capacity = 2
+      max_capacity     = 3
+      min_capacity     = 1
+      instance_type    = "t3.medium"
+      iam_role_arn     = module.iam.eks_node_role_arn  # Match the output name
+      additional_security_group_ids = [module.security_group.worker_security_group_id]  # Add worker SG
+    }
+  }
+}
+
+
+
+
+
+# Get worker node security group
+data "aws_security_group" "worker" {
+  name   = "eks-cluster-sg"  # Match your EKS worker SG name
+  vpc_id = module.vpc.vpc_id
+  depends_on = [module.security_group]
+}
+
+# # ALB to NodePort rule( Allow ALB → NodePort traffic)
+# resource "aws_security_group_rule" "alb_to_eks" {
+#   description              = "ALB to NodePort"
+#   type                     = "ingress"
+#   from_port                = 30000
+#   to_port                  = 30000
+#   protocol                 = "tcp"
+#   security_group_id        = module.security_group.eks_sg_id  # Your existing EKS SG
+#   source_security_group_id = module.alb.alb_security_group_id
+# }
+
+
+
+===== outputs.tf =====
+# output "alb_dns_name" {
+#   description = "DNS name of the ALB"
+#   value       = module.alb.alb_dns_name
+# }
+
+output "eks_cluster_endpoint" {
+  description = "Endpoint of the EKS cluster"
+  value       = module.eks.cluster_endpoint
+}
+
+# output "db_endpoint" {
+#   description = "RDS endpoint"
+#   value       = module.rds.db_endpoint
+# }
+
+output "aws_region" {
+  description = "AWS region"
+  value       = var.aws_region
+  
+}
+
+output "cluster_name" {
+  description = "EKS cluster name"
+  value       =var.cluster_name
+  
+}
+===== provider.tf =====
+terraform {
+  required_version = ">= 1.5.0"
+
+  backend "s3" {
+    bucket         = "ali-amalitech-state-bucket"
+    key            = "terraform/terraform.tfstate"
+    region         = "eu-west-1"
+    encrypt        = true
+  }
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region  = var.aws_region
+  profile = var.aws_profile
+}
+
+data "aws_s3_bucket" "terraform_state" {
+  bucket = "ali-amalitech-state-bucket"
+}
+
+resource "aws_s3_bucket_versioning" "state_versioning" {
+  bucket = data.aws_s3_bucket.terraform_state.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "state_encryption" {
+  bucket = data.aws_s3_bucket.terraform_state.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+===== variables.tf =====
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  default     = "eu-west-1"
+}
+
+variable "aws_profile" {
+  description = "AWS CLI profile"
+  type        = string
+}
+
+variable "vpc_cidr" {
+  description = "VPC CIDR block"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "public_subnet_cidrs" {
+  description = "List of public subnet CIDR blocks"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+}
+
+variable "private_subnet_cidrs" {
+  description = "List of private subnet CIDR blocks"
+  type        = list(string)
+  default     = ["10.0.3.0/24", "10.0.4.0/24"]
+}
+
+variable "availability_zones" {
+  description = "List of availability zones"
+  type        = list(string)
+  default     = ["eu-west-1a", "eu-west-1b"]
+}
+
+variable "db_name" {
+  description = "Database name"
+  type        = string
+  default     = "laraveldb"
+}
+
+variable "db_username" {
+  description = "Database username"
+  type        = string
+  default     = "admin"
+}
+
+variable "db_password" {
+  description = "Database password"
+  type        = string
+  sensitive   = true
+}
+
+variable "target_group_port" {  # Added for ALB module
+  description = "Port for the ALB target group"
+  type        = number
+  default     = 80
+}
+
+variable "cluster_name" {
+  description = "EKS cluster name"
+    type        = string
+    
+}

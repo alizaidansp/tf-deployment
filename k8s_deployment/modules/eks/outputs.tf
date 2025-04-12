@@ -1,7 +1,15 @@
 output "cluster_endpoint" {
-  value = module.eks.cluster_endpoint
+  value = aws_eks_cluster.this.endpoint
 }
 
+
+
+
+
 output "node_role_arn" {
-  value = aws_iam_role.eks_node_role.arn
+  value = var.eks_node_role_arn
+}
+
+output "worker_security_group_id" {
+  value = var.worker_security_group_id
 }

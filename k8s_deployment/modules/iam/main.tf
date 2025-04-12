@@ -1,4 +1,3 @@
-# In modules/eks/main.tf
 resource "aws_iam_role" "eks_cluster_role" {
   name = "${var.cluster_name}-cluster-role"
   assume_role_policy = jsonencode({
@@ -46,3 +45,12 @@ resource "aws_iam_role_policy_attachment" "ecr_readonly" {
   role       = aws_iam_role.eks_node_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
+
+# Outputs for module usage
+# output "eks_cluster_role_arn" {
+#   value = aws_iam_role.eks_cluster_role.arn
+# }
+
+# output "eks_node_role_arn" {
+#   value = aws_iam_role.eks_node_role.arn
+# }

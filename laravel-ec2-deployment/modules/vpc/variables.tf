@@ -17,3 +17,16 @@ variable "availability_zones" {
   description = "List of availability zones"
   type        = list(string)
 }
+
+
+# just for eks deployment, not needed for ec2 deployment
+
+variable "public_subnet_tags" {
+  type    = map(string)
+  default = {}
+}
+
+variable "private_subnet_tags" {
+  type    = map(string)
+  default = {}
+}

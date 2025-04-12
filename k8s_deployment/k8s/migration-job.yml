@@ -1,3 +1,5 @@
+
+# migration-job
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -7,26 +9,41 @@ spec:
     spec:
       containers:
       - name: laravel-migration
-        image: 183631301567.dkr.ecr.eu-west-1.amazonaws.com/lamp-app:latest 
+        image: 183631301567.dkr.ecr.eu-west-1.amazonaws.com/lamp-app:latest
         command: ["/bin/sh", "-c"]
         args:
         - |
           php artisan session:table || echo "Session table failed" && \
           php artisan migrate:fresh --seed || echo "Migration failed"
         env:
-        - name: DB_CONNECTION
-          value: "mysql"
-        - name: DB_HOST
-          value: "<RDS_ENDPOINT>"  # Replace with module.rds.db_endpoint
-        - name: DB_PORT
-          value: "3306"
-        - name: DB_DATABASE
-          value: "laraveldb"
-        - name: DB_USERNAME
-          value: "admin"
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: db-secrets
-              key: password
+          - name: DB_CONNECTION
+            valueFrom:
+              configMapKeyRef:
+                name: laravel-config
+                key: DB_CONNECTION
+          - name: DB_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: laravel-config
+                key: DB_HOST
+          - name: DB_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: laravel-config
+                key: DB_PORT
+          - name: DB_DATABASE
+            valueFrom:
+              configMapKeyRef:
+                name: laravel-config
+                key: DB_DATABASE
+          - name: DB_USERNAME
+            valueFrom:
+              configMapKeyRef:
+                name: laravel-config
+                key: DB_USERNAME
+          - name: DB_PASSWORD
+            valueFrom:
+              configMapKeyRef:
+                name: laravel-config
+                key: DB_PASSWORD
       restartPolicy: OnFailure

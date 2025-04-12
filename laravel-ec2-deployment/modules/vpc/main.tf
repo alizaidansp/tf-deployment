@@ -13,9 +13,14 @@ resource "aws_subnet" "public" {
   cidr_block              = var.public_subnet_cidrs[count.index]
   availability_zone       = var.availability_zones[count.index]
   map_public_ip_on_launch = true
-  tags = {
-    Name = "lamp-public-subnet-${var.availability_zones[count.index]}"
-  }
+ 
+    tags = merge(
+    {
+       Name = "lamp-public-subnet-${var.availability_zones[count.index]}"
+
+    },
+    var.public_subnet_tags
+  )
 }
 
 resource "aws_subnet" "private" {
@@ -23,9 +28,15 @@ resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = var.private_subnet_cidrs[count.index]
   availability_zone = var.availability_zones[count.index]
-  tags = {
-    Name = "lamp-private-subnet-${var.availability_zones[count.index]}"
-  }
+
+
+    tags = merge(
+    {
+        Name = "lamp-private-subnet-${var.availability_zones[count.index]}"
+
+    },
+    var.private_subnet_tags
+  )
 }
 
 resource "aws_internet_gateway" "igw" {

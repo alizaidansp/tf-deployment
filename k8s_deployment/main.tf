@@ -7,6 +7,18 @@ module "vpc" {
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
   availability_zones   = var.availability_zones
+
+
+  #  Tagging (Essential for EKS Discovery)
+  
+   public_subnet_tags = {
+    "kubernetes.io/role/elb" = "1"
+  }
+
+  private_subnet_tags = {
+    "kubernetes.io/role/internal-elb" = "1"
+}
+
 }
 
 # RDS Module (reused from original)
@@ -30,18 +42,19 @@ module "security_group" {
 }
 
 # ALB Module (new for EKS)
-module "alb" {
-  source            = "./modules/alb"
-  vpc_id            = module.vpc.vpc_id
-  subnet_ids        = module.vpc.public_subnet_ids
-  security_group_id = module.security_group.alb_sg_id
-  target_group_port = var.target_group_port 
-}
+# module "alb" {
+#   source            = "./modules/alb"
+#   vpc_id            = module.vpc.vpc_id
+#   subnet_ids        = module.vpc.public_subnet_ids
+#   security_group_id = module.security_group.alb_sg_id
+#   target_group_port = var.target_group_port 
+
+# }
 
 # IAM Module
 module "iam" {
 source = "./modules/iam"
-  cluster_name       = var.cluster_name
+cluster_name       = var.cluster_name
 
 
 }
@@ -49,11 +62,15 @@ source = "./modules/iam"
 # EKS Module (new)
 module "eks" {
   source             = "./modules/eks"
-  cluster_name       = "laravel-eks-cluster"
+  cluster_name       = "laravel-eks-cluster-2"
   cluster_version    = "1.27"
   vpc_id             = module.vpc.vpc_id
   subnet_ids         = module.vpc.private_subnet_ids
   security_group_ids = [module.security_group.eks_sg_id]
+  eks_cluster_role_arn = module.iam.eks_cluster_role_arn  # Correct module reference
+  eks_node_role_arn = module.iam.eks_node_role_arn  # Correct module reference
+  worker_security_group_id = module.security_group.worker_security_group_id
+
   
   node_groups = {
     general = {
@@ -61,9 +78,32 @@ module "eks" {
       max_capacity     = 3
       min_capacity     = 1
       instance_type    = "t3.medium"
-      iam_role_arn     = module.eks.node_role_arn  # Output from the eks module
+      iam_role_arn     = module.iam.eks_node_role_arn  # Match the output name
+      additional_security_group_ids = [module.security_group.worker_security_group_id]  # Add worker SG
     }
   }
 }
+
+
+
+
+
+# Get worker node security group
+data "aws_security_group" "worker" {
+  name   = "eks-cluster-sg"  # Match your EKS worker SG name
+  vpc_id = module.vpc.vpc_id
+  depends_on = [module.security_group]
+}
+
+# # ALB to NodePort rule( Allow ALB → NodePort traffic)
+# resource "aws_security_group_rule" "alb_to_eks" {
+#   description              = "ALB to NodePort"
+#   type                     = "ingress"
+#   from_port                = 30000
+#   to_port                  = 30000
+#   protocol                 = "tcp"
+#   security_group_id        = module.security_group.eks_sg_id  # Your existing EKS SG
+#   source_security_group_id = module.alb.alb_security_group_id
+# }
 
 
