@@ -36,10 +36,10 @@ module "ec2" {
   source               = "./modules/ec2"
   subnet_ids           = module.vpc.private_subnet_ids
   security_group_id    = module.security_group.ec2_sg_id
-  # ssh_key_name         = var.ssh_key_name
   iam_instance_profile = module.iam.instance_profile_name  # Updated to use IAM module output
   alb_target_group_arn = module.alb.target_group_arn
   db_host              = module.rds.db_endpoint
+  db_username         = var.db_username
   db_password        = var.db_password
 }
 

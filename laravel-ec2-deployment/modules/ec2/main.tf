@@ -37,8 +37,8 @@ resource "aws_launch_template" "app" {
       -e DB_CONNECTION=mysql \
       -e DB_PORT=3306 \
       -e DB_DATABASE=laraveldb \
-      -e DB_USERNAME=admin \
-      -e DB_PASSWORD="${var.db_password}" \
+      -e DB_USERNAME=${var.db_username} \
+      -e DB_PASSWORD=${var.db_password} \
       183631301567.dkr.ecr.eu-west-1.amazonaws.com/lamp-app:latest || echo "Run failed" >> /var/log/user-data.log
 
     sleep 10

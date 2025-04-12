@@ -1,0 +1,178 @@
+/*
+Jenkins Pipeline for Terraform Deployment
+Manages infrastructure provisioning on AWS using Terraform
+*/
+
+// -input=false  # Disables interactive prompts
+// -auto-approve # Required for CI/CD automation
+// -out=tfplan   # Ensures plan/apply consistency
+
+pipeline {
+    // Use any available agent (executor) for this pipeline
+    agent any
+
+    // Global environment variables accessible across all stages
+    environment {
+        AWS_DEFAULT_REGION = 'eu-west-1'  // Default AWS region for all operations
+    }
+
+    // Pipeline execution stages
+    stages {
+        // Stage 1: Fetch source code from repository
+        stage('Checkout Repository') {
+            steps {
+                git branch: 'main',  // Git branch to checkout
+                       url: 'https://github.com/alizaidansp/tf-deployment.git'  // Repository URL
+            }
+        }
+
+        // Stage 2: Inject Terraform variables file securely
+        stage('Inject tfvars') {
+            steps {
+                // Securely handle terraform.tfvars file using Jenkins credentials store
+                withCredentials([file(
+                    credentialsId: 'terraform-vars',  // Jenkins credential ID for tfvars
+                    variable: 'TFVARS_FILE'  // Local variable name for the file
+                )]) {
+                    dir('laravel-ec2-deployment') {  // Target directory
+                        // Force copy credentials file to working directory
+                        sh 'cp -f $TFVARS_FILE ./terraform.tfvars'
+                    }
+                }
+            }
+        }
+
+        // Stage 3: Prepare S3 backend for Terraform state
+        stage('Prepare Remote State (S3)') {
+            steps {
+                // Inject AWS credentials for state bucket operations
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',  // Jenkins credential ID for AWS
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',  // Env var for access key
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'  // Env var for secret key
+                )]) {
+                    dir('bash_scripts') {  // Directory containing state setup script
+                        // Make script executable and run it
+                        sh 'chmod +x state_file.sh && ./state_file.sh'
+                    }
+                }
+            }
+        }
+
+        // Stage 4: Initialize Terraform workspace
+        stage('Terraform Init') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir('laravel-ec2-deployment') {
+                        sh '''
+                        # Idempotent initialization logic
+                        if [ ! -d .terraform ]; then  # Check for existing initialization
+                            # Fresh initialization with backend config
+                            terraform init -input=false \\
+                                -backend-config="region=$AWS_DEFAULT_REGION"
+                        else
+                            # Reconfigure existing initialization
+                            echo "Terraform already initialized, skipping init"
+                            terraform init -input=false -reconfigure \\
+                                -backend-config="region=$AWS_DEFAULT_REGION"
+                        fi
+                        '''
+                    }
+                }
+            }
+        }
+
+                // Stage 5: Generate Terraform execution plan(Validation)
+        stage('Terraform Validate') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir('laravel-ec2-deployment') {
+                        sh '''
+                        # Create execution plan and save to file
+                        terraform validate 
+                        '''
+                    }
+                }
+            }
+        }
+
+
+        // Stage 6: Generate Terraform execution plan(Planning)
+        stage('Terraform Plan') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir('laravel-ec2-deployment') {
+                        sh '''
+                        # Create execution plan and save to file
+                        terraform plan -input=false -out=tfplan
+                        '''
+                    }
+                }
+            }
+        }
+
+        // Stage 7: Apply infrastructure changes
+        stage('Terraform Apply') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir('laravel-ec2-deployment') {
+                        sh '''
+                        # Automatically apply approved plan
+                        terraform apply -input=false -auto-approve tfplan
+                        '''
+                    }
+                }
+            }
+        }
+
+        // Stage 8: Output application endpoint
+        stage('Output ALB DNS Name') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir('laravel-ec2-deployment') {
+                        // Get and display ALB DNS name
+                        sh 'terraform output -raw alb_dns_name'
+                    }
+                }
+            }
+        }
+    }
+
+    // Post-execution actions
+    post {
+           
+        //   always {
+        //     cleanWs() // Clean workspace after build
+        // }
+        // Notification on successful build
+        success {
+            slackSend color: 'good', 
+                    message: "✅ Deployment Successful: ${env.JOB_NAME} ${env.BUILD_NUMBER}"
+        }
+        // Notification on failed build
+        failure {
+            slackSend color: 'danger', 
+                    message: "❌ Deployment Failed: ${env.JOB_NAME} ${env.BUILD_NUMBER}"
+        }
+    }
+}
