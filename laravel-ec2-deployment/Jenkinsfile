@@ -123,6 +123,13 @@ pipeline {
         //     }
         // }
 
+        stage('Cost Estimation') {
+            steps {
+                dir('bash_scripts') {
+                    sh 'chmod +x cost_estimate.sh && ./cost_estimate.sh'
+                }
+            }
+        }
         // // Stage 7: Apply infrastructure changes
         // stage('Terraform Apply') {
         //     steps {
@@ -159,22 +166,22 @@ pipeline {
 
 
         // optiona stage for destroying resources
-        stage('Destroy Resources') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'aws-creds',
-                    usernameVariable: 'AWS_ACCESS_KEY_ID',
-                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-                )]) {
-                    dir('laravel-ec2-deployment') {
-                        sh '''
-                        # Destroy resources
-                        terraform destroy -auto-approve
-                        '''
-                    }
-                }
-            }
-        }
+        // stage('Destroy Resources') {
+        //     steps {
+        //         withCredentials([usernamePassword(
+        //             credentialsId: 'aws-creds',
+        //             usernameVariable: 'AWS_ACCESS_KEY_ID',
+        //             passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+        //         )]) {
+        //             dir('laravel-ec2-deployment') {
+        //                 sh '''
+        //                 # Destroy resources
+        //                 terraform destroy -auto-approve
+        //                 '''
+        //             }
+        //         }
+        //     }
+        // }
     }
 
     // Post-execution actions
