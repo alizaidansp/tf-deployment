@@ -23,13 +23,13 @@ module "iam" {
 }
 
 # ALB Module
-# module "alb" {
-#   source            = "./modules/alb"
-#   vpc_id            = module.vpc.vpc_id
-#   subnet_ids        = module.vpc.public_subnet_ids
-#   security_group_id = module.security_group.alb_sg_id
-#   target_group_port = 80
-# }
+module "alb" {
+  source            = "./modules/alb"
+  vpc_id            = module.vpc.vpc_id
+  subnet_ids        = module.vpc.public_subnet_ids
+  security_group_id = module.security_group.alb_sg_id
+  target_group_port = 80
+}
 
 # EC2 Module
 module "ec2" {
