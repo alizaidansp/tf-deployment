@@ -16,6 +16,8 @@ spec:
       containers:
       - name: laravel
         image: 183631301567.dkr.ecr.eu-west-1.amazonaws.com/lamp-app:latest
+        # image: nginx:latest
+        
         ports:
         - containerPort: 80
         env:
