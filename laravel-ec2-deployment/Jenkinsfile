@@ -19,12 +19,12 @@ pipeline {
     // Pipeline execution stages
     stages {
         // // Stage 1: Fetch source code from repository
-        // stage('Checkout Repository') {
-        //     steps {
-        //         git branch: 'main',  // Git branch to checkout
-        //                url: 'https://github.com/alizaidansp/tf-deployment.git'  // Repository URL
-        //     }
-        // }
+        stage('Checkout Repository') {
+            steps {
+                git branch: 'main',  // Git branch to checkout
+                       url: 'https://github.com/alizaidansp/tf-deployment.git'  // Repository URL
+            }
+        }
 
         // // Stage 2: Inject Terraform variables file securely
         // stage('Inject tfvars') {
