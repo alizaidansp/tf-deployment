@@ -125,8 +125,8 @@ pipeline {
 
         stage('Cost Estimation') {
             steps {
-                dir('bash_scripts') {
-                    sh 'chmod +x cost_estimate.sh && ./cost_estimate.sh'
+                dir('laravel-ec2-deployment') {
+                    sh 'chmod +x ../bash_scripts/cost_estimate.sh && ../bash_scripts/cost_estimate.sh'
                 }
             }
         }
