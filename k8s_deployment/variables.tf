@@ -4,10 +4,10 @@ variable "aws_region" {
   default     = "eu-west-1"
 }
 
-variable "aws_profile" {
-  description = "AWS CLI profile"
-  type        = string
-}
+# variable "aws_profile" {
+#   description = "AWS CLI profile"
+#   type        = string
+# }
 
 variable "vpc_cidr" {
   description = "VPC CIDR block"
