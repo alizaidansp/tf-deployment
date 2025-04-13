@@ -126,10 +126,24 @@ pipeline {
 
         // // Stage 7: Estimate cost with infracost
 
-        stage('Cost Estimation') {
+            stage('Cost Estimation') {
+            when {
+                expression { fileExists('bash_scripts/cost_estimate.sh') }
+            }
             steps {
-                dir('laravel-ec2-deployment') {
-                    sh 'chmod +x ../bash_scripts/cost_estimate.sh && ../bash_scripts/cost_estimate.sh'
+                withCredentials([string(
+                    credentialsId: 'infracost-api-key',  // Jenkins credential for Infracost API key
+                    variable: 'INFRACOST_API_KEY'  // Bind to INFRACOST_API_KEY
+                )]) {
+                    dir('laravel-ec2-deployment') {
+                        // Generate Infracost JSON file before running cost_estimate.sh
+                        sh '''
+                        infracost breakdown --path . --format json --out-file infracost.json \\
+                           
+                        chmod +x ../bash_scripts/cost_estimate.sh
+                        ../bash_scripts/cost_estimate.sh
+                        '''
+                    }
                 }
             }
         }

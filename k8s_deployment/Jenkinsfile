@@ -1,0 +1,232 @@
+/*
+Jenkins Pipeline for EKS + Kubernetes Deployment
+Automates infrastructure provisioning and Kubernetes resource deployment using Terraform and kubectl
+*/
+
+pipeline {
+    // Use any available agent
+    agent any
+
+    // Global environment variables
+    environment {
+        AWS_DEFAULT_REGION = 'eu-west-1'  // AWS region
+        ENVIRONMENT = 'dev'  // Hardcoded to dev environment
+        TIMESTAMP = "${new Date().format('yyyyMMddHHmmss')}"  // Unique timestamp for logs/plans
+        TF_DIR = 'k8s_deployment'  // Directory for Terraform configs
+        K8S_DIR = "${TF_DIR}/k8s"  // Directory for Kubernetes manifests
+        LOG_DIR = "${WORKSPACE}/logs"  // Log directory
+    }
+
+    // Pipeline stages
+    stages {
+        // Stage 1: Checkout source code
+        stage('Checkout Repository') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/alizaidansp/tf-deployment.git'
+                sh "mkdir -p ${LOG_DIR}"
+            }
+        }
+
+        // Stage 2: Inject Terraform variables
+        stage('Inject tfvars') {
+            steps {
+                withCredentials([file(
+                    credentialsId: 'eks-terraform-vars',  // Distinct credentials ID
+                    variable: 'EKS_TFVARS_FILE'  // Distinct variable name
+                )]) {
+                    dir(TF_DIR) {
+                        sh 'cp -f $EKS_TFVARS_FILE ./terraform.tfvars'  // Copy to distinct filename
+                    }
+                }
+            }
+        }
+
+        // Stage 3: Prepare S3 backend for Terraform state
+        
+        stage('Prepare Remote State (S3)') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir('bash_scripts') {
+                        sh 'chmod +x state_file.sh && ./state_file.sh'
+                    }
+                }
+            }
+        }
+        
+
+        // Stage 4: Terraform initialization
+        
+        stage('Terraform Init') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir(TF_DIR) {
+                        sh '''
+                        if [ ! -d .terraform ]; then
+                            terraform init -input=false \\
+                                -backend-config="region=${AWS_DEFAULT_REGION}"
+                        else
+                            terraform init -input=false -reconfigure \\
+                                -backend-config="region=${AWS_DEFAULT_REGION}"
+                        fi
+                        '''
+                    }
+                }
+            }
+        }
+        
+
+        // Stage 5: Validate Terraform configuration
+        
+        stage('Terraform Validate') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir(TF_DIR) {
+                        sh 'terraform validate'
+                    }
+                }
+            }
+        }
+        
+
+        // Stage 6: Generate Terraform plan
+        
+        stage('Terraform Plan') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir(TF_DIR) {
+                        sh "terraform plan -input=false -out=tfplan.${TIMESTAMP}"
+                    }
+                }
+            }
+        }
+        
+
+        // Stage 7: Apply Terraform changes
+        
+        stage('Terraform Apply') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir(TF_DIR) {
+                        sh "terraform apply -input=false -auto-approve tfplan.${TIMESTAMP}"
+                    }
+                }
+            }
+        }
+        
+
+        // Stage 8: Configure kubectl context
+        
+        stage('Configure Kubectl') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir(TF_DIR) {
+                        sh '''
+                        aws eks --region $(terraform output -raw aws_region) update-kubeconfig \\
+                            --name $(terraform output -raw cluster_name)
+                        '''
+                    }
+                }
+            }
+        }
+        
+
+        // Stage 9: Deploy Kubernetes resources
+        
+        stage('Deploy Kubernetes Resources') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    dir(K8S_DIR) {
+                        sh '''
+                        for manifest in services.yml deployment.yml; do
+                            echo "Applying ${manifest}..."
+                            kubectl apply -f ${manifest}
+                        done
+                        '''
+                    }
+                }
+            }
+        }
+        
+
+        // Stage 10: Output credentials
+        
+        stage('Show CLuster Info') {
+            steps {
+                dir(TF_DIR) {
+                    sh '''
+                    echo "EKS Cluster Name: $(terraform output -raw cluster_name)"
+                    '''
+                }
+            }
+        }
+        
+
+        // Optional Stage: Cost estimation (if applicable)
+        
+     stage('Cost Estimation') {
+            when {
+                expression { fileExists('bash_scripts/cost_estimate.sh') }
+            }
+            steps {
+                withCredentials([string(
+                    credentialsId: 'infracost-api-key',  // Jenkins credential for Infracost API key
+                    variable: 'INFRACOST_API_KEY'  // Bind to INFRACOST_API_KEY
+                )]) {
+                    dir(TF_DIR) {
+                        // Generate Infracost JSON file before running cost_estimate.sh
+                        sh '''
+                        infracost breakdown --path . --format json --out-file infracost.json \\
+                           
+                        chmod +x ../bash_scripts/cost_estimate.sh
+                        ../bash_scripts/cost_estimate.sh
+                        '''
+                    }
+                }
+            }
+        }
+    
+        
+    }
+
+    // Post-execution actions
+    post {
+       
+        success {
+            slackSend color: 'good',
+                      message: "✅ EKS Deployment Successful: ${env.JOB_NAME} ${env.BUILD_NUMBER} (Env: ${ENVIRONMENT})"
+        }
+        failure {
+            slackSend color: 'danger',
+                      message: "❌ EKS Deployment Failed: ${env.JOB_NAME} ${env.BUILD_NUMBER} (Env: ${ENVIRONMENT})"
+        }
+    }
+}
