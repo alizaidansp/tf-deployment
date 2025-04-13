@@ -21,17 +21,6 @@ module "vpc" {
 
 }
 
-# RDS Module (reused from original)
-module "rds" {
-  source            = "../laravel-ec2-deployment/modules/rds"
-  vpc_id            = module.vpc.vpc_id
-  subnet_ids        = module.vpc.private_subnet_ids
-  security_group_id = module.security_group.rds_sg_id  # References new SG module
-  db_name           = var.db_name
-  db_username       = var.db_username
-  db_password       = var.db_password
-  multi_az          = true
-}
 
 # New Modules
 
@@ -41,15 +30,6 @@ module "security_group" {
   vpc_id = module.vpc.vpc_id
 }
 
-# ALB Module (new for EKS)
-# module "alb" {
-#   source            = "./modules/alb"
-#   vpc_id            = module.vpc.vpc_id
-#   subnet_ids        = module.vpc.public_subnet_ids
-#   security_group_id = module.security_group.alb_sg_id
-#   target_group_port = var.target_group_port 
-
-# }
 
 # IAM Module
 module "iam" {
@@ -95,15 +75,5 @@ data "aws_security_group" "worker" {
   depends_on = [module.security_group]
 }
 
-# # ALB to NodePort rule( Allow ALB → NodePort traffic)
-# resource "aws_security_group_rule" "alb_to_eks" {
-#   description              = "ALB to NodePort"
-#   type                     = "ingress"
-#   from_port                = 30000
-#   to_port                  = 30000
-#   protocol                 = "tcp"
-#   security_group_id        = module.security_group.eks_sg_id  # Your existing EKS SG
-#   source_security_group_id = module.alb.alb_security_group_id
-# }
 
 

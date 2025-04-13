@@ -49,21 +49,12 @@ deploy_k8s() {
     echo "🚢 Deploying Kubernetes resources..."
     cd "${K8S_DIR}"
     
-    # Retrieve RDS endpoint
-    # RDS_ENDPOINT=$(terraform output -raw db_endpoint)
-    # RDS_ENDPOINT=$(terraform output -raw db_endpoint | cut -d':' -f1 | sed 's/%$//')
-    
-    # Replace the placeholder in the config map file with the actual RDS endpoint
-    # sed "s|\${DB_HOST}|${RDS_ENDPOINT}|g" laravel-config.yml > laravel-config-temp.yml
+  
     
     
     declare -a MANIFESTS=(
-        # "secrets.yml"
-        "laravel-config.yml"  # Use the temporary file with replaced RDS endpoint
         "services.yml"
         "deployment.yml"
-        # "ingress.yml"
-        "migration-job.yml"
     )
     
     for manifest in "${MANIFESTS[@]}"; do
@@ -77,36 +68,11 @@ deploy_k8s() {
     cd "${TF_DIR}"
 }
 
-# verify_deployment() {
-#     echo "✅ Verifying deployment..."
-    
-#     echo "🖥 Kubernetes Nodes:"
-#     kubectl get nodes -o wide
-    
-#     echo "📦 Kubernetes Pods:"
-#     kubectl get pods -w --request-timeout=5s
-    
-#     echo "🔌 Services:"
-#     kubectl get svc
-    
-#     echo "🌐 Ingress:"
-#     kubectl get ingress
-    
-#     ALB_DNS=$(terraform output -raw alb_dns_name)
-#     echo "📡 Testing ALB endpoint: ${ALB_DNS}"
-#     curl -I --retry 3 --retry-delay 5 "${ALB_DNS}"
-    
-#     RDS_ENDPOINT=$(terraform output -raw db_endpoint)
-#     echo "🛢 RDS Endpoint: ${RDS_ENDPOINT}"
-# }
 
 show_credentials() {
     echo "🔐 Deployment Credentials:"
     echo "--------------------------"
     echo "EKS Cluster Name: $(terraform output -raw cluster_name)"
-    # echo "Kubernetes API Endpoint: $(terraform output -raw cluster_endpoint)"
-    # echo "ALB DNS Name: $(terraform output -raw alb_dns_name)"
-    echo "RDS Endpoint: $(terraform output -raw db_endpoint)"
 
 }
 
