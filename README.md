@@ -255,7 +255,7 @@ infracost breakdown --path=tfplan --format=json --out-file=infracost.json
 
 | Feature | EC2 Deployment | EKS Deployment |
 |---------|----------------|----------------|
-| **Scaling** | Auto Scaling Groups | Horizontal Pod Autoscaler |
+| **Scaling** | Auto Scaling Groups | Fixed ReplicaSet (e.g., 2 replicas) |
 | **Resource Efficiency** | Good | Excellent |
 | **Deployment Complexity** | Moderate | Higher |
 | **Learning Curve** | Lower | Steeper |
@@ -281,9 +281,10 @@ Both deployment architectures implement security best practices:
 - Scaling events create new instances from AMIs or launch templates
 
 **EKS Deployment Scaling**
-- Horizontal Pod Autoscaler adjusts pod count based on metrics
-- Cluster Autoscaler adjusts node count based on pod placement needs
-- More granular scaling at the pod level
+- **Static Replica Set**: The Kubernetes Deployment is configured with a fixed number of pods (e.g., `replicas: 2`) to ensure consistent application availability and load distribution.
+- **Cluster Autoscaler**: Adjusts the number of EKS worker nodes based on pod placement needs, adding or removing nodes when resource demands change.
+- **Manual Scaling**: Pod scaling requires updating the `replicas` field in the Deployment manifest and reapplying it, suitable for predictable workloads.
+
 
 ## Troubleshooting
 
