@@ -1,5 +1,9 @@
 # Terraform Infrastructure Deployments Guide
-*Building robust cloud architecture with Laravel applications on AWS*
+*Building robust cloud architecture  applications on AWS*
+
+![Jenkins Pipeline Flow](demo_images/Terraform%20Infrastructure.png)
+*This diagram illustrates the complete pipeline flow for the EC2 and EKS deployments, starting from code checkout, through Terraform stages, and ending with outputting the ALB DNS name.*
+
 
 ## Table of Contents
 - [Introduction](#introduction)

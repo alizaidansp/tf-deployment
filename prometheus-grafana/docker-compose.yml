@@ -1,0 +1,39 @@
+version: '3'
+
+services:
+
+  # Prometheus service
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus:/etc/prometheus  # Where ./prometheus contains prometheus.yml
+    ports:
+      - "9090:9090"  # Expose Prometheus UI on port 9090
+
+  # Grafana service
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"  # Expose Grafana UI on port 3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin  # Set admin password for Grafana
+    volumes:
+      - grafana-storage:/var/lib/grafana       # Persist dashboards, datasources, etc.
+
+  # Add Node Exporter service(for system level metrics)
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+  
+  fastapi-app:
+  # for application level metrics
+    image: rslim087/fastapi-prometheus:latest
+    ports:
+      - "8000:8000"  # Assuming your FastAPI app runs on port 8000
+  
+volumes:
+    grafana-storage:                              # Named volume to persist Grafana data
