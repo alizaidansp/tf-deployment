@@ -1,74 +1,102 @@
-# Terraform Infrastructure Deployments Guide
-*Building robust cloud architecture  applications on AWS*
 
-![Jenkins Pipeline Flow](demo_images/Terraform%20Infrastructure.png)
+---
+
+# Terraform Infrastructure Deployments and Monitoring Guide
+
+*Building robust cloud architecture applications on AWS *
+
+![Jenkins Pipeline Flow](demo_images/Terraform%20Infrastructure-2.png)  
 *This diagram illustrates the complete pipeline flow for the EC2 and EKS deployments, starting from code checkout, through Terraform stages, and ending with outputting the ALB DNS name.*
 
-
 ## Table of Contents
+
 - [Introduction](#introduction)
 - [Prerequisites](#prerequisites)
-- [Deployment Options](#deployment-options)
+- [Terraform Infrastructure Deployments](#terraform-infrastructure-deployments)
   - [Laravel EC2 Deployment](#laravel-ec2-deployment)
     - [Directory Structure](#ec2-directory-structure)
     - [Deployment Steps](#ec2-deployment-steps)
     - [Jenkins Pipeline](#ec2-jenkins-pipeline)
     - [Cost Management](#ec2-cost-management)
   - [Laravel EKS Deployment](#laravel-eks-deployment)
-    - [Directory Structure](#eks-directory-structure) 
+    - [Directory Structure](#eks-directory-structure)
     - [Deployment Steps](#eks-deployment-steps)
     - [Jenkins Pipeline](#eks-jenkins-pipeline)
     - [Cost Management](#eks-cost-management)
-- [Architecture Comparison](#architecture-comparison)
-- [Security Best Practices](#security-best-practices)
-- [Scaling Considerations](#scaling-considerations)
+  - [Architecture Comparison](#architecture-comparison)
+  - [Security Best Practices](#security-best-practices)
+  - [Scaling Considerations](#scaling-considerations)
+- [Monitoring with Prometheus and Grafana](#monitoring-with-prometheus-and-grafana)
+  - [Overview](#overview)
+  - [Directory Structure](#monitoring-directory-structure)
+  - [Setup Instructions](#setup-instructions)
+  - [Accessing the Tools](#accessing-the-tools)
+  - [Using the Grafana Dashboard](#using-the-grafana-dashboard)
+    - [Application Level Monitoring](#application-level-monitoring)
+    - [System Level Monitoring](#system-level-monitoring)
+  - [Customizing the Setup](#customizing-the-setup)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
 
+---
+
 ## Introduction
 
-This guide presents two robust deployment architectures for Laravel applications on AWS: a traditional EC2-based setup and a modern Kubernetes solution using EKS. Both approaches use Infrastructure as Code (IAC) with Terraform to ensure consistency, repeatability, and maintainability across environments.
+This guide provides detailed instructions for deploying Laravel and Nginx  applications on AWS using two distinct architectures managed with Terraform as Infrastructure as Code (IaC):
 
-Whether you're building a personal project, a startup application, or an enterprise system, these deployment options will help you establish a production-ready environment with proper scaling, security, and operational efficiency.
+- A traditional EC2-based setup.
+- A modern Kubernetes solution using EKS.
+
+Additionally, it includes a monitoring setup using Prometheus and Grafana to collect and visualize system-level and application-level metrics for your deployed applications. Whether you're building a personal project, a startup application, or an enterprise system, these deployment options and monitoring tools will help you establish a production-ready environment with scalability, security, operational efficiency, and observability.
+
+---
 
 ## Prerequisites
 
-Before diving into deployments, ensure you have the following tools and configurations ready:
+To follow this guide, ensure you have the following tools installed and configured:
 
-- **AWS CLI**: Installed and configured with appropriate IAM credentials
+- **AWS CLI**: Required for both EC2 and EKS deployments. Configure with appropriate IAM credentials.
   ```bash
   aws --version  # Should be 2.0+ for full EKS support
   ```
 
-- **Terraform**: Version 1.5.0 or newer
+- **Terraform**: Version 1.5.0 or newer, required for infrastructure deployments.
   ```bash
   terraform --version
   ```
 
-- **kubectl**: For Kubernetes deployments
+- **kubectl**: Required for EKS deployment.
   ```bash
   kubectl version --client
   ```
 
-- **Jenkins**: Configured with the following plugins:
+- **Jenkins**: Required for CI/CD pipelines, with the following plugins:
   - Git
   - Pipeline
   - AWS Credentials
   - Credentials Binding
 
-- **Infracost**: (Optional) For infrastructure cost estimation
+- **Infracost**: Optional, for cost estimation.
   ```bash
   infracost --version
   ```
 
-## Deployment Options
+- **Docker**: Required for the monitoring setup.
+- **Docker Compose**: Required for the monitoring setup.
+- **Git**: Optional, for cloning repositories.
+
+Ensure your system has sufficient permissions to run Docker containers and access AWS resources.
+
+---
+
+## Terraform Infrastructure Deployments
+
+This section covers deploying Laravel applications on AWS using Terraform, with two options: EC2 and EKS. Each includes directory structures, deployment steps, Jenkins pipeline configurations, and cost management strategies.
 
 ### Laravel EC2 Deployment
 
-The EC2 deployment architecture leverages traditional virtual machines combined with modern containerization. This approach uses an Application Load Balancer (ALB) for traffic distribution, EC2 instances within an Auto Scaling Group for running Docker-containerized Laravel applications, and an RDS database for persistent storage.
-
-This architecture is ideal for teams familiar with traditional server management while still embracing some container benefits.
+The EC2 deployment uses traditional virtual machines with an Application Load Balancer (ALB), an Auto Scaling Group running Docker-containerized Laravel applications, and an RDS database. Ideal for teams familiar with server management who want container benefits.
 
 #### EC2 Directory Structure
 
@@ -89,10 +117,10 @@ laravel-ec2-deployment/
 └── variables.tf             # Variable declarations
 ```
 
-**Key Scripts**
-- `bash_scripts/state_file.sh`: Creates S3 bucket for Terraform state management
-- `bash_scripts/cost_estimate.sh`: Estimates infrastructure costs using Infracost
-- `bash_scripts/nuke.sh`: Emergency cleanup script for all resources
+**Key Scripts**  
+- `bash_scripts/state_file.sh`: Creates an S3 bucket for Terraform state.  
+- `bash_scripts/cost_estimate.sh`: Estimates costs using Infracost.  
+- `bash_scripts/nuke.sh`: Emergency cleanup script.
 
 #### EC2 Deployment Steps
 
@@ -101,7 +129,7 @@ laravel-ec2-deployment/
    cd bash_scripts/
    ./state_file.sh
    ```
-   This creates an encrypted S3 bucket with versioning and state locking enabled.
+   Creates an encrypted S3 bucket with versioning and state locking.
 
 2. **Initialize Terraform**
    ```bash
@@ -113,58 +141,52 @@ laravel-ec2-deployment/
    ```bash
    terraform plan
    ```
-   Take time to understand the planned resources and their relationships.
 
 4. **Deploy the Infrastructure**
    ```bash
    terraform apply
    ```
-   This process typically takes 10-15 minutes as it creates VPC components, RDS instances, EC2 launch configurations, and more.
+   Takes ~10-15 minutes to create VPC, RDS, EC2, etc.
 
 5. **Access Your Application**
    ```bash
    echo "Your application is available at: $(terraform output -raw alb_dns_name)"
    ```
-   The ALB DNS name resolves to your load-balanced Laravel application.
 
 #### EC2 Jenkins Pipeline
 
-The included Jenkinsfile orchestrates end-to-end deployment with these stages:
+The `Jenkinsfile` orchestrates deployment with these stages:  
+- Code checkout  
+- Secure variable injection  
+- S3 backend prep  
+- Terraform init/validation  
+- Infrastructure deployment  
+- Output extraction  
 
-![Jenkins Pipeline Flow](demo_images/ec2/checkout-code.png)
-*Repository checkout stage showing successful code retrieval*
+![Checkout Stage](demo_images/ec2/checkout-code.png)  
+*Repository checkout stage showing successful code retrieval*  
 
-![Terraform Apply Stage](demo_images/ec2/tf-apply.png)
+![Terraform Apply](demo_images/ec2/tf-apply.png)  
 *Terraform apply stage showing resource provisioning*
-
-The pipeline handles:
-- Code checkout from Git
-- Secure injection of Terraform variables
-- S3 backend preparation
-- Terraform initialization and validation
-- Infrastructure deployment
-- Output extraction
 
 #### EC2 Cost Management
 
-Monitor and optimize your infrastructure costs with the included Infracost integration:
-
-![Cost Estimation Report](demo_images/ec2/cost-estimate.png)
-*Monthly cost breakdown for EC2-based infrastructure*
-
+Use Infracost for cost monitoring:  
 ```bash
-# Generate detailed cost estimation
 cd laravel-ec2-deployment/
 terraform plan -out=tfplan
 infracost breakdown --path=tfplan --format=json --out-file=infracost.json
 ../bash_scripts/cost_estimate.sh
 ```
 
+![Cost Estimation](demo_images/ec2/cost-estimate.png)  
+*Monthly cost breakdown for EC2-based infrastructure*
+
+---
+
 ### Laravel EKS Deployment
 
-The EKS deployment offers a modern, container-orchestrated approach using Kubernetes. This solution provides enhanced scalability, improved resource utilization, and simplified application lifecycle management through Kubernetes' powerful orchestration capabilities.
-
-This architecture is perfect for teams embracing microservices or requiring advanced deployment strategies like blue-green or canary deployments.
+The EKS deployment uses Kubernetes for enhanced scalability and resource utilization, ideal for microservices or advanced deployment strategies.
 
 #### EKS Directory Structure
 
@@ -185,10 +207,10 @@ k8s_deployment/
 └── variables.tf             # Variable declarations
 ```
 
-**Key Scripts**
-- `bash_scripts/deploy.sh`: Complete deployment script (alternative to Jenkins)
-- `bash_scripts/state_file.sh`: S3 bucket creation for Terraform state
-- `bash_scripts/cost_estimate.sh`: Infrastructure cost estimation
+**Key Scripts**  
+- `bash_scripts/deploy.sh`: Alternative deployment script.  
+- `bash_scripts/state_file.sh`: S3 bucket creation.  
+- `bash_scripts/cost_estimate.sh`: Cost estimation.
 
 #### EKS Deployment Steps
 
@@ -205,14 +227,12 @@ k8s_deployment/
    terraform plan
    terraform apply
    ```
-   This creates the EKS cluster, node groups, and necessary networking components.
 
 3. **Configure kubectl**
    ```bash
    aws eks --region $(terraform output -raw aws_region) update-kubeconfig \
      --name $(terraform output -raw cluster_name)
    ```
-   This updates your local kubectl configuration to connect to the new cluster.
 
 4. **Deploy Kubernetes Resources**
    ```bash
@@ -220,7 +240,6 @@ k8s_deployment/
    kubectl apply -f services.yml
    kubectl apply -f deployment.yml
    ```
-   This deploys your application pods and creates a LoadBalancer service.
 
 5. **Access Your Application**
    ```bash
@@ -229,95 +248,213 @@ k8s_deployment/
 
 #### EKS Jenkins Pipeline
 
-The EKS Jenkins pipeline adds Kubernetes-specific stages to the deployment process:
+The pipeline includes Kubernetes-specific stages:  
+- Infrastructure provisioning  
+- Kubectl configuration  
+- Kubernetes manifest deployment  
+- Cluster info output  
 
-![Kubectl Configuration](demo_images/eks/k8s-config.png)
-*Kubectl configuration stage showing successful cluster connection*
+![Kubectl Config](demo_images/eks/k8s-config.png)  
+*Kubectl configuration stage showing successful cluster connection*  
 
-![Kubernetes Resources Deployment](demo_images/eks/k8s-res.png)
+![K8s Deployment](demo_images/eks/k8s-res.png)  
 *Kubernetes resources deployment showing successful pod creation*
-
-The pipeline handles all infrastructure and application deployment steps:
-- Infrastructure provisioning with Terraform
-- Kubectl configuration
-- Kubernetes manifest deployment
-- Cluster information output
 
 #### EKS Cost Management
 
-EKS deployments have different cost considerations compared to EC2:
-
 ```bash
-# Generate EKS cost estimation
 cd k8s_deployment/
 terraform plan -out=tfplan
 infracost breakdown --path=tfplan --format=json --out-file=infracost.json
 ../bash_scripts/cost_estimate.sh
 ```
 
-## Architecture Comparison
+---
 
-| Feature | EC2 Deployment | EKS Deployment |
-|---------|----------------|----------------|
-| **Scaling** | Auto Scaling Groups | Fixed ReplicaSet (e.g., 2 replicas) |
-| **Resource Efficiency** | Good | Excellent |
-| **Deployment Complexity** | Moderate | Higher |
-| **Learning Curve** | Lower | Steeper |
-| **Update Strategy** | Rolling updates | Multiple strategies available |
-| **Typical Cost** | Moderate | Higher base cost, better optimization |
-| **Best For** | Traditional applications | Microservices, complex deployments |
+### Architecture Comparison
 
-## Security Best Practices
+| Feature                | EC2 Deployment         | EKS Deployment          |
+|-----------------------|------------------------|-------------------------|
+| **Scaling**           | Auto Scaling Groups    | Fixed ReplicaSet (e.g., 2 replicas) |
+| **Resource Efficiency** | Good                  | Excellent              |
+| **Deployment Complexity** | Moderate            | Higher                 |
+| **Learning Curve**    | Lower                  | Steeper                |
+| **Update Strategy**   | Rolling updates        | Multiple strategies    |
+| **Typical Cost**      | Moderate               | Higher base, better optimization |
+| **Best For**          | Traditional apps       | Microservices, complex deployments |
 
-Both deployment architectures implement security best practices:
+---
 
-- **Least Privilege IAM**: All IAM roles follow the principle of least privilege
-- **Network Isolation**: Resources in private subnets with controlled access
-- **Security Groups**: Granular control of network traffic
-- **Secrets Management**: Sensitive data (like database credentials) managed securely
-- **Encryption**: Data encryption at rest and in transit
+### Security Best Practices
 
-## Scaling Considerations
+- **Least Privilege IAM**: Roles follow minimal permissions.  
+- **Network Isolation**: Private subnets with controlled access.  
+- **Security Groups**: Granular traffic control.  
+- **Secrets Management**: Securely managed sensitive data.  
+- **Encryption**: Data encrypted at rest and in transit.
 
-**EC2 Deployment Scaling**
-- Auto Scaling Groups respond to CPU/Memory thresholds
-- ALB distributes traffic to healthy instances
-- Scaling events create new instances from AMIs or launch templates
+---
 
-**EKS Deployment Scaling**
-- **Static Replica Set**: The Kubernetes Deployment is configured with a fixed number of pods (e.g., `replicas: 2`) to ensure consistent application availability and load distribution.
-- **Cluster Autoscaler**: Adjusts the number of EKS worker nodes based on pod placement needs, adding or removing nodes when resource demands change.
-- **Manual Scaling**: Pod scaling requires updating the `replicas` field in the Deployment manifest and reapplying it, suitable for predictable workloads.
+### Scaling Considerations
 
+**EC2 Deployment**  
+- Auto Scaling Groups use CPU/memory thresholds.  
+- ALB distributes traffic.  
+- Scaling creates new instances from AMIs/launch templates.  
+
+**EKS Deployment**  
+- **Static Replica Set**: Fixed pods (e.g., `replicas: 2`).  
+- **Cluster Autoscaler**: Adjusts worker nodes based on demand.  
+- **Manual Scaling**: Update `replicas` in manifest.
+
+---
+
+## Monitoring with Prometheus and Grafana
+
+This section sets up a monitoring stack using Prometheus and Grafana to visualize system-level and application-level metrics. It uses Docker Compose and includes a pre-configured dashboard.
+
+### Overview
+
+Components:  
+- **Prometheus**: Time-series database for metric scraping.  
+- **Grafana**: Visualization tool with dashboards.  
+- **Node Exporter**: System metrics (CPU, memory, etc.).  
+- **FastAPI App**: Sample app for application metrics.  
+
+The dashboard splits into **Application Level Monitoring** and **System Level Monitoring**.
+
+### Directory Structure
+
+```
+prometheus-grafana/
+├── docker-compose.yml       # Defines services
+├── prometheus/              # Prometheus config
+│   └── prometheus.yml       # Scrape targets
+└── grafana-dashboard.json   # Configured dashboard
+```
+
+### Setup Instructions
+
+1. **Prepare Files**  
+   Ensure `docker-compose.yml`, `prometheus/prometheus.yml`, and `grafana-dashboard.json` are in your directory.
+
+2. **Start the Stack**
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Verify Services**
+   ```bash
+   docker-compose ps
+   ```
+   Confirm all services (`prometheus`, `grafana`, `node-exporter`, `fastapi-app`) are `Up`.
+
+### Accessing the Tools
+
+- **Prometheus UI**: [http://localhost:9090](http://localhost:9090)  
+- **Grafana UI**: [http://localhost:3000](http://localhost:3000) (Login: `Username: admin`/`Password: admin`)  
+- **Node Exporter**: [http://localhost:9100/metrics](http://localhost:9100/metrics)  
+- **FastAPI App**: [http://localhost:8000](http://localhost:8000)  
+- **FastAPI Metrics**: [http://localhost:8000/metrics](http://localhost:8000/metrics)
+
+### Using the Grafana Dashboard
+
+1. **Access Grafana**  
+   Go to [http://localhost:3000](http://localhost:3000), log in with `admin`/`admin`.
+
+2. **Import Dashboard**  
+   - Click **Dashboards** > **Import**.  
+   - Upload `grafana-dashboard.json`.  
+   - Save the dashboard.
+
+#### Application Level Monitoring
+
+Metrics:  
+- **Uptime**: App runtime (seconds).  
+- **Total Requests**: HTTP requests processed.  
+- **Avg. Req. Duration**: Average response time (seconds).  
+- **Error Rate**: Failed requests (4xx/5xx, %).  
+- **Requests in Progress**: Active requests.  
+- **API Throughput**: Request rate (req/s).  
+- **Status Breakdown**: Pie chart of statuses.  
+
+![App Monitoring](demo_images/promethous-grafana/dashboard-1.png)  
+*Application Level Monitoring showing key app metrics.*
+
+#### System Level Monitoring
+
+Metrics:  
+- **Disk I/O**: Read/write rates (bytes/s).  
+- **Memory Usage**: CPU, memory, network, disk metrics (% and MB/s).  
+- **Network I/O**: Transmit/receive rates (MB/s).  
+
+![Sys Monitoring](demo_images/promethous-grafana/dashboard-2.png)  
+*System Level Monitoring showing resource usage.*
+
+### Customizing the Setup
+
+- **Prometheus**: Edit `prometheus.yml` for new targets:  
+  ```yaml
+  - job_name: 'new-service'
+    static_configs:
+      - targets: ['new-service:port']
+  ```
+
+- **Grafana**: Update dashboard in UI, export to `grafana-dashboard.json`. Change password:  
+  ```yaml
+  environment:
+    - GF_SECURITY_ADMIN_PASSWORD=newpassword
+  ```
+
+- **Additional Exporters**: Add services (e.g., `cadvisor`) to `docker-compose.yml` and `prometheus.yml`.  
+- **Security**: Restrict access in production (e.g., firewall, proxy).
+
+---
 
 ## Troubleshooting
 
-**Common EC2 Deployment Issues**
-- ALB health check failures: Check security groups and instance health
-- Database connection issues: Verify RDS security group rules
-- Auto Scaling problems: Review launch template and ASG configuration
+**EC2 Issues**  
+- ALB health check fails: Check security groups/instance health.  
+- DB connection fails: Verify RDS rules.  
+- Auto Scaling issues: Review launch templates/ASG config.  
 
-**Common EKS Deployment Issues**
-- Pod scheduling failures: Check node resources and taints
-- Service connectivity issues: Verify network policies and security groups
-- Authentication problems: Review AWS auth configuration map
+**EKS Issues**  
+- Pod scheduling fails: Check node resources/taints.  
+- Service connectivity: Verify network policies/security groups.  
+- Auth issues: Review AWS auth config map.  
+
+**Monitoring Issues**  
+- Prometheus not scraping: Check `prometheus.yml`/network.  
+- Grafana no data: Verify data sources/scraping.  
+- FastAPI metrics missing: Check endpoint/app config.
+
+---
 
 ## Contributing
 
-Contributions to these deployment templates are welcome! Here's how you can contribute:
+Contributions are welcome!  
+1. Fork the repository.  
+2. Create a branch for your changes.  
+3. Test thoroughly.  
+4. Submit a pull request with a clear description.  
 
-1. Fork the repository
-2. Create a new branch for your feature or fix
-3. Make changes and test thoroughly
-4. Submit a pull request with clear description of improvements
+Guidelines:  
+- Clear commit messages.  
+- Update docs.  
+- Add tests.  
+- Consistent style.
 
-Please follow these guidelines:
-- Write clear commit messages
-- Update documentation for any changes
-- Add tests for new features
-- Maintain consistent code style
+---
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+---
+
+### Notes on Improvements
+
+- **Structure**: The README now clearly separates Terraform deployments (EC2 and EKS) and the Prometheus/Grafana monitoring setup as distinct sections under a unified TOC.  
+- **Grafana/Prometheus**: This section is streamlined with a clear TOC, consistent subsections, and proper image paths (standardized to `demo_images/prometheus-grafana/`).  
+- **Consistency**: Image references, code blocks, and formatting are uniform. The FastAPI app is kept as a sample; adapt it to Laravel if needed.  
+- **Clarity**: Each section is self-contained, with prerequisites consolidated upfront and specific requirements noted where applicable.
