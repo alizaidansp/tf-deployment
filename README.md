@@ -378,7 +378,7 @@ Metrics:
 - **API Throughput**: Request rate (req/s).  
 - **Status Breakdown**: Pie chart of statuses.  
 
-![App Monitoring](demo_images/promethous-grafana/dashboard-1.png)  
+![App Monitoring](demo_images/promethous-grafana/dashboard-1-update.png)  
 *Application Level Monitoring showing key app metrics.*
 
 #### System Level Monitoring
@@ -388,7 +388,7 @@ Metrics:
 - **Memory Usage**: CPU, memory, network, disk metrics (% and MB/s).  
 - **Network I/O**: Transmit/receive rates (MB/s).  
 
-![Sys Monitoring](demo_images/promethous-grafana/dashboard-2.png)  
+![Sys Monitoring](demo_images/promethous-grafana/dashboard-2-update.png)  
 *System Level Monitoring showing resource usage.*
 
 ### Customizing the Setup
