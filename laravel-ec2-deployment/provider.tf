@@ -6,6 +6,8 @@ terraform {
     key            = "terraform/terraform.tfstate"
     region         = "eu-west-1"
     encrypt        = true
+    use_lockfile = true #s3 versioning already enabled for s3 
+
   }
 
   required_providers {
