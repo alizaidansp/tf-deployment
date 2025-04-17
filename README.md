@@ -452,9 +452,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-### Notes on Improvements
-
-- **Structure**: The README now clearly separates Terraform deployments (EC2 and EKS) and the Prometheus/Grafana monitoring setup as distinct sections under a unified TOC.  
-- **Grafana/Prometheus**: This section is streamlined with a clear TOC, consistent subsections, and proper image paths (standardized to `demo_images/prometheus-grafana/`).  
-- **Consistency**: Image references, code blocks, and formatting are uniform. The FastAPI app is kept as a sample; adapt it to Laravel if needed.  
-- **Clarity**: Each section is self-contained, with prerequisites consolidated upfront and specific requirements noted where applicable.
